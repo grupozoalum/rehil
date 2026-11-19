@@ -164,12 +164,13 @@ function vibrar(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (_
 // ---------- Estado ----------
 const S = {
   conectado: false, sesionActiva: true, micListo: false, error: "",
-  grabando: false, enviando: false, calibrandoHasta: 0,
+  grabando: false, enviando: false, calibrandoHasta: 0, sinMedidor: false,
   turno: null, profesor: null, yo: {}, ultimoTurno: null, pendiente: null,
 };
 let db, base, refYo;
 let stream, ctx, analizador, buffer, rec, trozos = [];
-let tInicio = 0, hablo = false, ultimaVoz = 0, ruido = null, sinVoz = false, enviarAlTerminar = true, turnoGrabado = null;
+let tInicio = 0, hablo = false, ultimaVoz = 0, ruido = null, maxRms = 0, enviarAlTerminar = true, turnoGrabado = null;
+let vadTimer = null, historial = [];
 let wakeLock = null;
 
 function estadoVisual() {
@@ -202,7 +203,9 @@ function render() {
     detalle = "Escanee el código nuevo que aparece en la pantalla del profesor.";
   } else if (e === "grabando") {
     titulo = "Le escucho…";
-    detalle = "Haga su pregunta con naturalidad. Se envía sola cuando deje de hablar.";
+    detalle = S.sinMedidor
+      ? "Haga su pregunta y toque «Terminar y enviar» cuando acabe."
+      : "Haga su pregunta con naturalidad. Se envía sola cuando deje de hablar.";
   } else if (e === "enviando") {
     titulo = "Enviando su pregunta…";
     detalle = "El profesor la recibirá en un momento.";
@@ -294,20 +297,27 @@ async function activarMic() {
     S.error = "Esta página debe abrirse con https para usar el micrófono.";
     render(); return;
   }
+  // El contexto de audio se crea DENTRO del toque: iPhone lo deja suspendido si se crea después.
+  try {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume().catch(() => {});
+  } catch (_) { ctx = null; }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
     });
-    ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const fuente = ctx.createMediaStreamSource(stream);
-    analizador = ctx.createAnalyser();
-    analizador.fftSize = 1024;
-    buffer = new Float32Array(analizador.fftSize);
-    fuente.connect(analizador);
+    if (ctx) {
+      const fuente = ctx.createMediaStreamSource(stream);
+      analizador = ctx.createAnalyser();
+      analizador.fftSize = 1024;
+      buffer = new Float32Array(analizador.fftSize);
+      fuente.connect(analizador);
+    }
     S.micListo = true;
     if (S.conectado) update(refYo, { mic: true, conectado: true });
     pedirWakeLock();
-    requestAnimationFrame(bucle);
+    // setInterval sigue corriendo aunque el navegador no esté pintando cuadros
+    if (!vadTimer) vadTimer = setInterval(vad, 50);
     if (S.pendiente) { const id = S.pendiente; S.pendiente = null; iniciarGrabacion(id); }
     else avisar("Micrófono listo");
   } catch (e) {
@@ -315,6 +325,11 @@ async function activarMic() {
   }
   render();
 }
+
+// Cualquier toque reactiva el audio si el navegador lo suspendió
+document.addEventListener("pointerdown", () => {
+  if (ctx && ctx.state !== "running") ctx.resume().catch(() => {});
+}, { passive: true });
 
 function elegirMime() {
   if (!window.MediaRecorder) return null;
@@ -328,7 +343,9 @@ function iniciarGrabacion(id) {
   const mime = elegirMime();
   if (mime === null) { S.error = "Este navegador no puede grabar audio. Use Chrome o Safari actualizados."; render(); return; }
   if (ctx && ctx.state === "suspended") ctx.resume();
-  trozos = []; hablo = false; sinVoz = false; ruido = null; ultimaVoz = 0; enviarAlTerminar = true;
+  trozos = []; hablo = false; ruido = null; maxRms = 0; ultimaVoz = 0; enviarAlTerminar = true;
+  historial = [];
+  S.sinMedidor = false;
   turnoGrabado = id;
   rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined);
   rec.ondataavailable = e => { if (e.data && e.data.size) trozos.push(e.data); };
@@ -336,6 +353,7 @@ function iniciarGrabacion(id) {
   rec.start(250);
   tInicio = performance.now();
   S.grabando = true;
+  update(refYo, { grabando: id });          // le confirma al profesor que ya está grabando
   vibrar([60, 40, 60]);
   render();
 }
@@ -349,19 +367,21 @@ function detener(enviar) {
 }
 
 async function finalizar(mime) {
+  update(refYo, { grabando: 0 });
   if (!enviarAlTerminar) { render(); return; }
   const dur = (performance.now() - tInicio) / 1000;
   const audioRef = ref(db, `${base}/audio`);
   try {
-    if (sinVoz || !trozos.length) {
+    if (!trozos.length) {
       await push(audioRef, { jurado: J, turno: turnoGrabado, vacio: true, t: serverTimestamp() });
-      avisar("No se escuchó su voz. Puede volver a levantar la mano.");
+      avisar("No se grabó audio. Puede volver a levantar la mano.");
       return;
     }
+    // Se envía siempre lo grabado: si de verdad no hubo voz, Gemini pide repetir la pregunta.
     S.enviando = true; render();
     const blob = new Blob(trozos, { type: mime });
     const data = await aBase64(blob);
-    await push(audioRef, { jurado: J, turno: turnoGrabado, mime: mime.split(";")[0], data,
+    await push(audioRef, { jurado: J, turno: turnoGrabado, mime: mime.split(";")[0], data, voz: hablo,
                            dur: Math.round(dur * 10) / 10, t: serverTimestamp() });
   } catch (e) {
     avisar("No se pudo enviar el audio. Revise su conexión.");
@@ -379,29 +399,39 @@ function aBase64(blob) {
   });
 }
 
-// Nivel del micrófono y detección de fin de la pregunta
-function bucle() {
-  if (analizador) {
-    analizador.getFloatTimeDomainData(buffer);
-    let suma = 0;
-    for (let i = 0; i < buffer.length; i++) suma += buffer[i] * buffer[i];
-    const rms = Math.sqrt(suma / buffer.length);
-    document.documentElement.style.setProperty("--nivel", S.grabando ? Math.min(1, rms * 9).toFixed(3) : 0);
-    if (S.grabando) {
-      const t = (performance.now() - tInicio) / 1000;
-      if (t < 0.35) {
-        ruido = ruido === null ? rms : 0.7 * ruido + 0.3 * rms;
-      } else {
-        const umbral = Math.max(0.012, 3 * (ruido || 0.004));
-        if (rms > umbral) { hablo = true; ultimaVoz = t; }
-        if (hablo && t - ultimaVoz > 1.3) detener(true);
-        else if (!hablo && t > 7) { sinVoz = true; detener(true); }
-      }
-      if (S.grabando && t > 15) detener(true);
-    }
-  }
+// Nivel del micrófono (null si el navegador no deja medirlo)
+function leerNivel() {
+  if (!analizador || !ctx || ctx.state !== "running") return null;
+  analizador.getFloatTimeDomainData(buffer);
+  let suma = 0;
+  for (let i = 0; i < buffer.length; i++) suma += buffer[i] * buffer[i];
+  return Math.sqrt(suma / buffer.length);
+}
+
+// Detección de fin de la pregunta, adaptada al ruido del lugar
+function vad() {
+  const rms = leerNivel();
+  document.documentElement.style.setProperty("--nivel", S.grabando && rms ? Math.min(1, rms * 14).toFixed(3) : 0);
   if (S.calibrandoHasta && performance.now() > S.calibrandoHasta) { S.calibrandoHasta = 0; render(); }
-  requestAnimationFrame(bucle);
+  if (!S.grabando) return;
+  const t = (performance.now() - tInicio) / 1000;
+  if (rms !== null) {
+    maxRms = Math.max(maxRms, rms);
+    // Piso de ruido = percentil 15 de los últimos 3 s: se adapta a ventiladores o gente de fondo
+    historial.push(rms);
+    if (historial.length > 60) historial.shift();
+    const orden = [...historial].sort((x, y) => x - y);
+    ruido = Math.max(0.001, orden[Math.floor(orden.length * 0.15)]);
+    const umbralVoz = Math.max(0.006, ruido * 2.8);
+    const umbralSilencio = Math.max(0.004, ruido * 1.6);
+    if (rms > umbralVoz) { hablo = true; ultimaVoz = t; }
+    else if (hablo && rms > umbralSilencio) ultimaVoz = t;          // sigue dentro de la frase
+    if (t > 0.6 && hablo && t - ultimaVoz > 0.9) { detener(true); return; }
+  }
+  const sinMedidor = rms === null || (t > 1.5 && maxRms === 0);
+  if (sinMedidor !== S.sinMedidor) { S.sinMedidor = sinMedidor; render(); }
+  if (!hablo && t > (sinMedidor ? 10 : 8)) { detener(true); return; }
+  if (t > 14) detener(true);
 }
 
 async function pedirWakeLock() {
@@ -413,7 +443,7 @@ document.addEventListener("visibilitychange", () => {
 
 // ---------- Botones ----------
 ui.activar.addEventListener("click", activarMic);
-ui.terminar.addEventListener("click", () => { hablo = true; detener(true); });
+ui.terminar.addEventListener("click", () => detener(true));
 ui.pedir.addEventListener("click", () => {
   update(refYo, { pide: serverTimestamp() });
   vibrar(40);
