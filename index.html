@@ -121,13 +121,12 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, update, push, serverTimestamp, onDisconnect }
-  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getFirestore, doc, collection, onSnapshot, setDoc, addDoc, serverTimestamp, Bytes }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAnq1OZavOTquMPyLs_etqA0qystCd7rMI",
   authDomain: "oracles-99bc3.firebaseapp.com",
-  databaseURL: "https://oracles-99bc3-default-rtdb.firebaseio.com",
   projectId: "oracles-99bc3",
   storageBucket: "oracles-99bc3.firebasestorage.app",
   messagingSenderId: "785165056789",
@@ -139,10 +138,7 @@ const firebaseConfig = {
 const P = new URLSearchParams(location.search);
 const SID = P.get("s") || "";
 const J = parseInt(P.get("j") || "0", 10);
-const dbParam = P.get("db");
-if (dbParam && /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.(firebaseio\.com|firebasedatabase\.app)\/?$/i.test(dbParam)) {
-  firebaseConfig.databaseURL = dbParam.replace(/\/$/, "");
-}
+const COLECCION = "mirada_sesiones";
 
 // ---------- Interfaz ----------
 const $ = id => document.getElementById(id);
@@ -167,7 +163,8 @@ const S = {
   grabando: false, enviando: false, calibrandoHasta: 0, sinMedidor: false,
   turno: null, profesor: null, yo: {}, ultimoTurno: null, pendiente: null,
 };
-let db, base, refYo;
+let db, sesionRef, refYo;
+const yo = datos => setDoc(refYo, datos, { merge: true }).catch(() => {});
 let stream, ctx, analizador, buffer, rec, trozos = [];
 let tInicio = 0, hablo = false, ultimaVoz = 0, ruido = null, maxRms = 0, enviarAlTerminar = true, turnoGrabado = null;
 let vadTimer = null, historial = [];
@@ -254,27 +251,23 @@ function render() {
 // ---------- Firebase ----------
 function iniciarFirebase() {
   const app = initializeApp(firebaseConfig);
-  db = getDatabase(app);
-  base = `mirada/sesiones/${SID}`;
-  refYo = ref(db, `${base}/jurados/j${J}`);
+  db = getFirestore(app);
+  sesionRef = doc(db, COLECCION, SID);
+  refYo = doc(db, COLECCION, SID, "jurados", `j${J}`);
 
-  onValue(ref(db, ".info/connected"), snap => {
-    S.conectado = snap.val() === true;
-    if (S.conectado) {
-      onDisconnect(refYo).update({ conectado: false });
-      update(refYo, { conectado: true, mic: S.micListo, t: serverTimestamp(),
-                      equipo: navigator.userAgent.slice(0, 120) });
-    }
-    render();
-  });
-  onValue(ref(db, `${base}/info`), snap => {
-    const v = snap.val();
+  yo({ conectado: true, mic: false, visto: serverTimestamp(), equipo: navigator.userAgent.slice(0, 120) });
+  // Latido: le dice al profesor que este teléfono sigue con la página abierta
+  setInterval(() => { if (!document.hidden) yo({ conectado: true, visto: serverTimestamp() }); }, 20000);
+  addEventListener("pagehide", () => yo({ conectado: false }));
+
+  onSnapshot(sesionRef, { includeMetadataChanges: true }, snap => {
+    S.conectado = !snap.metadata.fromCache;
+    const v = snap.data();
     S.sesionActiva = !!(v && v.activa !== false);
-    render();
-  }, err => { S.error = "No hay permiso para leer la sesión. Revise las reglas de Firebase."; render(); });
-  onValue(ref(db, `${base}/turno`), snap => manejarTurno(snap.val()));
-  onValue(ref(db, `${base}/profesor`), snap => { S.profesor = snap.val(); render(); });
-  onValue(refYo, snap => { S.yo = snap.val() || {}; render(); });
+    S.profesor = v ? v.profesor : null;
+    manejarTurno(v ? v.turno : null);
+  }, () => { S.error = "No hay permiso para leer la sesión. Revise las reglas de Firestore."; render(); });
+  onSnapshot(refYo, snap => { S.yo = snap.data() || {}; render(); });
 }
 
 function manejarTurno(t) {
@@ -314,7 +307,7 @@ async function activarMic() {
       fuente.connect(analizador);
     }
     S.micListo = true;
-    if (S.conectado) update(refYo, { mic: true, conectado: true });
+    yo({ mic: true, conectado: true, visto: serverTimestamp() });
     pedirWakeLock();
     // setInterval sigue corriendo aunque el navegador no esté pintando cuadros
     if (!vadTimer) vadTimer = setInterval(vad, 50);
@@ -353,7 +346,7 @@ function iniciarGrabacion(id) {
   rec.start(250);
   tInicio = performance.now();
   S.grabando = true;
-  update(refYo, { grabando: id });          // le confirma al profesor que ya está grabando
+  yo({ grabando: id });                     // le confirma al profesor que ya está grabando
   vibrar([60, 40, 60]);
   render();
 }
@@ -367,36 +360,27 @@ function detener(enviar) {
 }
 
 async function finalizar(mime) {
-  update(refYo, { grabando: 0 });
+  yo({ grabando: 0 });
   if (!enviarAlTerminar) { render(); return; }
   const dur = (performance.now() - tInicio) / 1000;
-  const audioRef = ref(db, `${base}/audio`);
+  const preguntas = collection(sesionRef, "preguntas");
   try {
     if (!trozos.length) {
-      await push(audioRef, { jurado: J, turno: turnoGrabado, vacio: true, t: serverTimestamp() });
+      await addDoc(preguntas, { jurado: J, turno: turnoGrabado, vacio: true, estado: "pendiente", creado: serverTimestamp() });
       avisar("No se grabó audio. Puede volver a levantar la mano.");
       return;
     }
     // Se envía siempre lo grabado: si de verdad no hubo voz, Gemini pide repetir la pregunta.
     S.enviando = true; render();
     const blob = new Blob(trozos, { type: mime });
-    const data = await aBase64(blob);
-    await push(audioRef, { jurado: J, turno: turnoGrabado, mime: mime.split(";")[0], data, voz: hablo,
-                           dur: Math.round(dur * 10) / 10, t: serverTimestamp() });
+    const audio = Bytes.fromUint8Array(new Uint8Array(await blob.arrayBuffer()));
+    await addDoc(preguntas, { jurado: J, turno: turnoGrabado, audio, mime: mime.split(";")[0], voz: hablo,
+                              dur: Math.round(dur * 10) / 10, estado: "pendiente", creado: serverTimestamp() });
   } catch (e) {
     avisar("No se pudo enviar el audio. Revise su conexión.");
   } finally {
     S.enviando = false; render();
   }
-}
-
-function aBase64(blob) {
-  return new Promise((ok, mal) => {
-    const r = new FileReader();
-    r.onload = () => ok(String(r.result).split(",")[1] || "");
-    r.onerror = mal;
-    r.readAsDataURL(blob);
-  });
 }
 
 // Nivel del micrófono (null si el navegador no deja medirlo)
@@ -445,12 +429,12 @@ document.addEventListener("visibilitychange", () => {
 ui.activar.addEventListener("click", activarMic);
 ui.terminar.addEventListener("click", () => detener(true));
 ui.pedir.addEventListener("click", () => {
-  update(refYo, { pide: serverTimestamp() });
+  yo({ pide: serverTimestamp() });
   vibrar(40);
   avisar("Solicitud enviada al profesor");
 });
 ui.registrar.addEventListener("click", () => {
-  update(refYo, { calibrar: serverTimestamp() });
+  yo({ calibrar: serverTimestamp() });
   S.calibrandoHasta = performance.now() + 10000;
   vibrar(40);
   render();
