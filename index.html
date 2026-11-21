@@ -41,6 +41,8 @@
   h1{margin:0 0 8px;font-size:clamp(24px,7vw,30px);line-height:1.15}
   .detalle{margin:0;color:var(--tenue);max-width:34ch}
 
+  .nota{margin:14px 0 0;padding:10px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--linea);
+        color:var(--ambar);font-weight:600;font-size:15px;max-width:36ch}
   .acciones{display:flex;flex-direction:column;gap:10px;margin-top:6px}
   button{font:inherit;font-weight:700;border:0;border-radius:16px;padding:17px 18px;cursor:pointer;
          transition:transform .08s,opacity .2s}
@@ -97,6 +99,7 @@
     </div>
     <h1 id="titulo">Conectando…</h1>
     <p class="detalle" id="detalle"></p>
+    <p class="nota oculto" id="nota"></p>
   </section>
 
   <section class="acciones">
@@ -144,7 +147,7 @@ const COLECCION = "mirada_sesiones";
 const $ = id => document.getElementById(id);
 const ui = {
   titulo: $("titulo"), detalle: $("detalle"), quien: $("quien"),
-  activar: $("btnActivar"), terminar: $("btnTerminar"), pedir: $("btnPedir"), registrar: $("btnRegistrar"),
+  nota: $("nota"), activar: $("btnActivar"), terminar: $("btnTerminar"), pedir: $("btnPedir"), registrar: $("btnRegistrar"),
   panel: $("panelProfesor"), estadoProf: $("estadoProf"), pregunta: $("profPregunta"), texto: $("profTexto"),
   punto: $("punto"), conexion: $("conexion"), sesion: $("sesion"), aviso: $("aviso"),
 };
@@ -224,6 +227,27 @@ function render() {
   }
   ui.titulo.textContent = titulo;
   ui.detalle.textContent = detalle;
+
+  // Modo clase: preguntas al final y cuántas le quedan a este jurado
+  const cl = S.profesor && S.profesor.clase;
+  let nota = "";
+  if (cl && SID && J && S.sesionActiva && e !== "grabando" && e !== "enviando") {
+    const lim = cl.limite || 2;
+    const usadas = (cl.usadas || {})["j" + J] || 0;
+    const quedan = Math.max(0, lim - usadas);
+    const pos = (cl.cola || []).indexOf(J);
+    if (["generando", "sintetizando", "explicando"].includes(cl.fase)) {
+      nota = `Clase en curso: «${cl.titulo}». Las preguntas son al final, ${lim} por jurado.`;
+      if (pos >= 0) nota += " Usted ya está en la lista.";
+    } else if (cl.fase === "preguntas") {
+      nota = quedan > 0
+        ? `Ronda de preguntas: le ${quedan === 1 ? "queda" : "quedan"} ${quedan} de ${lim}.`
+        : `Ya hizo sus ${lim} preguntas. ¡Gracias!`;
+      if (pos >= 0) nota += ` Usted es el número ${pos + 1} de la lista.`;
+    }
+  }
+  ui.nota.textContent = nota;
+  ui.nota.classList.toggle("oculto", !nota);
 
   const valido = SID && J && S.sesionActiva && !S.error;
   ui.activar.classList.toggle("oculto", !(valido && !S.micListo));
