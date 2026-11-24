@@ -91,6 +91,17 @@
   .profesor .preg{margin:8px 0 4px;color:var(--tenue);font-size:15px}
   .profesor .sub{margin:0;font:400 19px/1.45 var(--serif);min-height:1.4em}
 
+  button:disabled{cursor:default}
+  .secundario:disabled{opacity:.6;border-style:dashed}
+  .avance{height:4px;border-radius:2px;background:var(--linea);margin-top:10px;overflow:hidden}
+  .avance i{display:block;height:100%;background:var(--acento);border-radius:2px;transition:width .6s}
+  .reloj{color:var(--tenue);font-size:14px;margin-top:6px}
+  /* El pizarrón del profesor, igual en los dos temas */
+  .pizarra{background:#213D33;color:#EEF1EA;border-radius:14px;padding:16px 18px;
+           box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+  .pizarra ul{list-style:none;margin:0;padding:0}
+  .pizarra li{font:400 18px/1.5 var(--serif);padding:3px 0 3px 18px;position:relative}
+  .pizarra li::before{content:"";position:absolute;left:2px;top:.75em;width:6px;height:6px;border-radius:50%;background:#EEF1EA;opacity:.7}
   .senal{margin-top:14px;padding:10px 14px;border-radius:12px;background:var(--capa2);color:var(--mal);font-weight:600;font-size:14px;text-align:center}
   .aviso{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(10px);
          background:var(--texto);color:var(--fondo);padding:12px 18px;border-radius:12px;font-weight:600;
@@ -266,7 +277,7 @@ function vibrar(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (_
 const S = {
   conectado: false, sesionActiva: true, micListo: false, error: "",
   grabando: false, enviando: false, calibrandoHasta: 0, sinMedidor: false,
-  turno: null, profesor: null, yo: {}, ultimoTurno: null, pendiente: null, tAbierto: performance.now(),
+  turno: null, profesor: null, yo: {}, ultimoTurno: null, pendiente: null, tAbierto: performance.now(), pedidoHasta: 0,
 };
 let db, sesionRef, refYo;
 const yo = datos => setDoc(refYo, datos, { merge: true }).catch(() => {});
@@ -338,18 +349,28 @@ function render() {
     const usadas = (cl.usadas || {})["j" + J] || 0;
     const quedan = Math.max(0, lim - usadas);
     const pos = (cl.cola || []).indexOf(J);
-    if (["generando", "sintetizando", "explicando"].includes(cl.fase)) {
-      nota = `Clase en curso: «${cl.titulo}». Las preguntas son al final, ${lim} por jurado.`;
+    const plural = lim === 1 ? "1 pregunta" : `${lim} preguntas`;
+    if (["generando", "sintetizando"].includes(cl.fase)) {
+      nota = `El profesor prepara la clase «${esc(cl.titulo)}». Al final habrá ${plural} por jurado.`;
+    } else if (cl.fase === "explicando") {
+      nota = `Clase en curso: «${esc(cl.titulo)}». Las preguntas son al final, ${plural} por jurado.`;
       if (pos >= 0) nota += " Usted ya está en la lista.";
+      if (cl.duracion) {
+        const falta = Math.max(0, Math.round((1 - (cl.avance || 0)) * cl.duracion));
+        nota += `<div class="avance"><i style="width:${Math.round((cl.avance || 0) * 100)}%"></i></div>
+          <div class="reloj">Faltan ${Math.floor(falta / 60)}:${String(falta % 60).padStart(2, "0")} de explicación</div>`;
+      }
     } else if (cl.fase === "preguntas") {
       nota = quedan > 0
         ? `Ronda de preguntas: le ${quedan === 1 ? "queda" : "quedan"} ${quedan} de ${lim}.`
-        : `Ya hizo sus ${lim} preguntas. ¡Gracias!`;
+        : (lim === 1 ? "Ya hizo su pregunta. ¡Gracias!" : `Ya hizo sus ${lim} preguntas. ¡Gracias!`);
       if (pos >= 0) nota += ` Usted es el número ${pos + 1} de la lista.`;
-      if (M.lista.length) nota += " El resumen y el examen ya están disponibles.";
+      if (M.lista.length) nota += " Ya puede repasar en Resumen y Examen.";
+    } else if (cl.fase === "terminada") {
+      nota = "La clase terminó. Puede repasar en Resumen y Examen.";
     }
   }
-  ui.nota.textContent = nota;
+  ui.nota.innerHTML = nota;
   ui.nota.classList.toggle("oculto", !nota);
 
   const valido = SID && J && S.sesionActiva && !S.error;
@@ -358,6 +379,17 @@ function render() {
   ui.terminar.classList.toggle("oculto", e !== "grabando");
   const libre = valido && S.micListo && (e === "listo" || e === "respuesta");
   ui.pedir.classList.toggle("oculto", !libre);
+  // Se bloquea cuando el jurado ya usó sus preguntas, ya está formado o la clase terminó
+  let bloqueo = "";
+  if (cl) {
+    const lim = cl.limite || 2, usadas = (cl.usadas || {})["j" + J] || 0, pos = (cl.cola || []).indexOf(J);
+    if (usadas >= lim) bloqueo = lim === 1 ? "Ya hizo su pregunta" : `Ya hizo sus ${lim} preguntas`;
+    else if (pos >= 0) bloqueo = `Está en la lista: número ${pos + 1}`;
+    else if (cl.fase === "terminada") bloqueo = "La clase terminó";
+  }
+  if (!bloqueo && performance.now() < S.pedidoHasta) bloqueo = "Solicitud enviada";
+  ui.pedir.disabled = !!bloqueo;
+  ui.pedir.textContent = bloqueo || "Pedir la palabra";
   ui.registrar.classList.toggle("oculto", !libre);
   ui.registrar.textContent = S.yo && S.yo.registrado ? "Lugar registrado ✓ (volver a registrar)" : "Registrar mi lugar";
 
@@ -375,6 +407,7 @@ function render() {
   if (!valido && vista !== "mic") mostrarVista("mic");
   if ((e === "grabando" || S.pendiente) && vista !== "mic") mostrarVista("mic");   // su turno manda
 
+  revisarVacio();
   // Solo se avisa cuando falta internet (después de unos segundos, no al abrir)
   ui.senal.classList.toggle("oculto", !(valido && !S.conectado && performance.now() - S.tAbierto > 5000));
 }
@@ -416,10 +449,11 @@ function iniciarFirebase() {
       }
     }
     cargado = true;
+    M.error = false;
     pintarResumen();
     if (!E || E.mid !== M.actual || E.fase === "inicio") nuevoExamen(false);
     render();
-  }, () => {});
+  }, () => { M.error = true; pintarResumen(); pintarExamen(); });
 }
 
 function manejarTurno(t) {
@@ -581,9 +615,13 @@ document.addEventListener("visibilitychange", () => {
 ui.activar.addEventListener("click", activarMic);
 ui.terminar.addEventListener("click", () => detener(true));
 ui.pedir.addEventListener("click", () => {
+  if (ui.pedir.disabled) return;
   yo({ pide: serverTimestamp() });
+  S.pedidoHasta = performance.now() + 4000;          // evita tocar dos veces
   vibrar(40);
   avisar("Solicitud enviada al profesor");
+  render();
+  setTimeout(render, 4100);
 });
 ui.registrar.addEventListener("click", () => {
   yo({ calibrar: serverTimestamp() });
@@ -626,16 +664,39 @@ document.addEventListener("change", ev => {
 });
 
 function sinMaterial() {
-  return `<div class="vacio"><b>Todavía no hay una clase</b>
-    <span>Cuando el profesor termine de explicar un tema, aquí podrá repasarlo y hacer un examen corto.</span></div>`;
+  const cl = S.profesor && S.profesor.clase;
+  let titulo = "Todavía no hay una clase", texto = "Cuando el profesor termine de explicar un tema, aquí podrá repasarlo y hacer un examen corto.";
+  if (M.error) {
+    titulo = "No se pudo abrir el material";
+    texto = "El resumen y el examen no están disponibles en este momento.";
+  } else if (cl && cl.material === "error") {
+    titulo = "Esta vez no hay resumen";
+    texto = "No se pudo preparar el resumen y el examen de esta clase.";
+  } else if (cl && cl.fase !== "terminada") {
+    titulo = `«${esc(cl.titulo)}»`;
+    texto = cl.fase === "preguntas"
+      ? "El resumen y el examen se están terminando de preparar. Aparecerán aquí en un momento."
+      : "El resumen y el examen se abren aquí al terminar la explicación.";
+  }
+  return `<div class="vacio"><b>${titulo}</b><span>${texto}</span></div>`;
+}
+// Si no hay material, el aviso cambia con el estado de la clase
+let ultimoVacio = "";
+function revisarVacio() {
+  if (material()) return;
+  const v = sinMaterial();
+  if (v !== ultimoVacio) { ultimoVacio = v; pintarResumen(); pintarExamen(); }
 }
 
 function pintarResumen() {
   const m = material();
   if (!m) { ui.resumen.innerHTML = sinMaterial(); return; }
   const r = m.resumen || {};
-  let h = selectorTema() + `<h2>${esc(m.titulo)}</h2><p class="sub2">Resumen de la clase</p>`;
+  const meta = ["Resumen de la clase", m.minutos ? `${m.minutos} min` : "", m.publico_nombre || ""].filter(Boolean).join(", ");
+  let h = selectorTema() + `<h2>${esc(m.titulo)}</h2><p class="sub2">${esc(meta)}</p>`;
   if (r.idea_central) h += `<p class="idea">${esc(r.idea_central)}</p>`;
+  if ((m.pizarron || []).length)
+    h += `<section class="bloque"><h3>En el pizarrón</h3><div class="pizarra"><ul>${m.pizarron.map(p => `<li>${esc(p)}</li>`).join("")}</ul></div></section>`;
   if ((r.puntos || []).length)
     h += `<section class="bloque"><h3>Lo más importante</h3><ul class="puntos">${r.puntos.map(p => `<li>${esc(p)}</li>`).join("")}</ul></section>`;
   if ((r.conceptos || []).length)
