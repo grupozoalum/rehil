@@ -3,84 +3,173 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1322">
-<title>M.I.R.A.D.A. · Micrófono del jurado</title>
+<meta name="theme-color" content="#12211C">
+<title>M.I.R.A.D.A. · Jurado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&display=swap" rel="stylesheet">
 <style>
+  /* Tema "pizarrón" (oscuro) y "gis" (claro). Acento: caléndula. */
   :root{
-    --fondo:#0b1322; --fondo2:#13213a; --panel:#152440; --linea:#24395c;
-    --texto:#eef2f7; --tenue:#93a4bd; --acento:#00b0d2; --verde:#5fce78;
-    --rojo:#ef5350; --ambar:#f5b52a; --nivel:0;
-    --anillo:var(--linea);
+    --fondo:#12211C; --capa:#1B2F28; --capa2:#223A31; --linea:#2E4A3F;
+    --texto:#EEF1EA; --tenue:#A3B5AB; --acento:#F2A93B; --acento-tinta:#2A1802; --acento-texto:#F5B85A;
+    --ok:#86D3A0; --mal:#F2836B; --grabar:#F07A62;
+    --serif:"Literata",Georgia,"Times New Roman",serif;
+    --sans:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --nivel:0; --anillo:var(--linea);
+    color-scheme:dark;
+  }
+  :root[data-tema="claro"]{
+    --fondo:#F3F6F2; --capa:#FFFFFF; --capa2:#E8EEE9; --linea:#D3DDD6;
+    --texto:#16261F; --tenue:#56695F; --acento:#E39A2D; --acento-tinta:#2A1802; --acento-texto:#8F5300;
+    --ok:#23804B; --mal:#BF3F2A; --grabar:#D9533B;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:light){
+    :root:not([data-tema="oscuro"]){
+      --fondo:#F3F6F2; --capa:#FFFFFF; --capa2:#E8EEE9; --linea:#D3DDD6;
+      --texto:#16261F; --tenue:#56695F; --acento:#E39A2D; --acento-tinta:#2A1802; --acento-texto:#8F5300;
+      --ok:#23804B; --mal:#BF3F2A; --grabar:#D9533B;
+      color-scheme:light;
+    }
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
-  body{
-    background:radial-gradient(120% 80% at 50% 0%, var(--fondo2) 0%, var(--fondo) 60%);
-    color:var(--texto);
-    font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    min-height:100dvh;
-  }
+  body{background:var(--fondo);color:var(--texto);font:16px/1.5 var(--sans);min-height:100dvh;
+       transition:background-color .25s,color .25s}
   main{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;
-       padding:calc(14px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
+       padding:calc(14px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))}
+  :focus-visible{outline:2px solid var(--acento);outline-offset:3px}
 
-  header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .marca{font-weight:800;letter-spacing:.06em;color:var(--acento)}
-  .quien{background:var(--panel);border:1px solid var(--linea);border-radius:999px;
-         padding:6px 14px;font-weight:700;font-size:15px}
+  header{display:flex;align-items:center;gap:12px}
+  .marca{font:600 19px/1 var(--serif);letter-spacing:.04em;margin-right:auto}
+  .quien{font-weight:600;font-size:15px;color:var(--tenue)}
+  .quien b{color:var(--texto);font-weight:700}
+  .tema{width:38px;height:38px;padding:0;border-radius:50%;display:grid;place-items:center;
+        background:none;color:var(--tenue);border:1px solid var(--linea)}
+  .tema svg{width:18px;height:18px}
 
+  /* Pestañas: texto con subrayado de caléndula */
+  .pestanas{display:flex;gap:22px;margin-top:18px;border-bottom:1px solid var(--linea)}
+  .pestanas button{position:relative;background:none;border-radius:0;padding:10px 0 12px;
+                   color:var(--tenue);font-weight:600;font-size:16px}
+  .pestanas button[aria-selected="true"]{color:var(--texto)}
+  .pestanas button[aria-selected="true"]::before{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;
+                   border-radius:3px 3px 0 0;background:var(--acento)}
+  .pestanas button.nuevo::after{content:"";position:absolute;top:10px;right:-9px;width:7px;height:7px;border-radius:50%;background:var(--acento)}
+  .vista{flex:1;display:flex;flex-direction:column}
+
+  /* Micrófono: anillos como curvas de nivel del mapa de profundidad */
   .escena{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-          text-align:center;padding:18px 4px 10px}
-  .anillo{position:relative;width:min(58vw,230px);aspect-ratio:1;border-radius:50%;
-          display:grid;place-items:center;margin-bottom:26px}
-  .anillo::before{content:"";position:absolute;inset:0;border-radius:50%;
-          border:3px solid var(--anillo);transition:border-color .3s}
-  .anillo::after{content:"";position:absolute;inset:14%;border-radius:50%;
-          background:var(--anillo);opacity:calc(.10 + var(--nivel)*.55);
-          transform:scale(calc(.85 + var(--nivel)*.35));transition:background .3s}
-  .anillo svg{position:relative;z-index:1;width:34%;height:34%;color:var(--anillo);transition:color .3s}
-  h1{margin:0 0 8px;font-size:clamp(24px,7vw,30px);line-height:1.15}
+          text-align:center;padding:22px 4px 10px}
+  .anillo{position:relative;width:min(56vw,220px);aspect-ratio:1;display:grid;place-items:center;margin-bottom:28px}
+  .anillo i{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--anillo);transition:border-color .3s,transform .3s}
+  .anillo i:nth-child(1){opacity:.28;transform:scale(calc(1 + var(--nivel)*.10))}
+  .anillo i:nth-child(2){inset:13%;opacity:.5;transform:scale(calc(1 + var(--nivel)*.14))}
+  .anillo i:nth-child(3){inset:26%;opacity:.8;transform:scale(calc(1 + var(--nivel)*.18))}
+  .anillo .nucleo{position:absolute;inset:36%;border-radius:50%;background:var(--anillo);transition:background .3s}
+  .anillo svg{position:relative;z-index:1;width:18%;height:18%;color:var(--fondo)}
+  h1{margin:0 0 10px;font:600 clamp(25px,7vw,31px)/1.15 var(--serif)}
   .detalle{margin:0;color:var(--tenue);max-width:34ch}
+  .nota{margin:18px 0 0;padding:2px 0 2px 14px;border-left:3px solid var(--acento);text-align:left;
+        color:var(--texto);font-size:15px;max-width:36ch}
 
-  .nota{margin:14px 0 0;padding:10px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--linea);
-        color:var(--ambar);font-weight:600;font-size:15px;max-width:36ch}
   .acciones{display:flex;flex-direction:column;gap:10px;margin-top:6px}
-  button{font:inherit;font-weight:700;border:0;border-radius:16px;padding:17px 18px;cursor:pointer;
-         transition:transform .08s,opacity .2s}
-  button:active{transform:scale(.98)}
-  .primario{background:var(--acento);color:#04131c}
-  .peligro{background:var(--rojo);color:#fff}
-  .secundario{background:var(--panel);color:var(--texto);border:1px solid var(--linea)}
-  .texto{background:none;color:var(--tenue);padding:10px;font-weight:600;text-decoration:underline}
+  button{font:inherit;font-weight:700;border:0;border-radius:14px;padding:16px 18px;cursor:pointer;
+         transition:transform .08s,background-color .2s,color .2s}
+  button:active{transform:scale(.985)}
+  .primario{background:var(--acento);color:var(--acento-tinta)}
+  .peligro{background:var(--grabar);color:#fff}
+  .secundario{background:none;color:var(--texto);border:1.5px solid var(--linea)}
+  .texto{background:none;color:var(--tenue);padding:10px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
   .oculto{display:none !important}
 
-  .profesor{margin-top:16px;background:var(--panel);border:1px solid var(--linea);border-radius:16px;padding:14px 16px}
-  .profesor .etq{display:flex;justify-content:space-between;align-items:center;color:var(--tenue);
-                 font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-  .pildora{padding:3px 10px;border-radius:999px;background:var(--linea);color:var(--texto);
-           font-size:12px;letter-spacing:.02em}
-  .profesor .preg{margin:10px 0 4px;color:var(--ambar);font-weight:600;font-size:15px}
-  .profesor .sub{margin:0;font-size:17px;min-height:1.4em}
+  /* Lo que dice el profesor */
+  .profesor{margin-top:18px;padding:14px 0 0;border-top:1px solid var(--linea)}
+  .profesor .etq{display:flex;justify-content:space-between;align-items:baseline;color:var(--tenue);font-size:14px;font-weight:600}
+  .pildora{color:var(--acento-texto);font-weight:600}
+  .profesor .preg{margin:8px 0 4px;color:var(--tenue);font-size:15px}
+  .profesor .sub{margin:0;font:400 19px/1.45 var(--serif);min-height:1.4em}
 
-  footer{display:flex;justify-content:space-between;align-items:center;color:var(--tenue);font-size:12px;margin-top:14px}
-  .punto{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--rojo);margin-right:6px}
-  .punto.ok{background:var(--verde)}
-
-  .aviso{position:fixed;left:50%;top:calc(62px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-12px);
+  .senal{margin-top:14px;padding:10px 14px;border-radius:12px;background:var(--capa2);color:var(--mal);font-weight:600;font-size:14px;text-align:center}
+  .aviso{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(10px);
          background:var(--texto);color:var(--fondo);padding:12px 18px;border-radius:12px;font-weight:600;
-         opacity:0;pointer-events:none;transition:.25s;max-width:90vw;text-align:center}
+         opacity:0;pointer-events:none;transition:.25s;width:max-content;max-width:88vw;text-align:center}
   .aviso.ver{opacity:1;transform:translateX(-50%) translateY(0)}
 
   body[data-estado="listo"]     {--anillo:var(--acento)}
-  body[data-estado="grabando"]  {--anillo:var(--rojo)}
+  body[data-estado="grabando"]  {--anillo:var(--grabar)}
   body[data-estado="enviando"]  {--anillo:var(--acento)}
-  body[data-estado="otro"]      {--anillo:var(--ambar)}
-  body[data-estado="respuesta"] {--anillo:var(--verde)}
-  body[data-estado="calibrar"]  {--anillo:var(--ambar)}
-  body[data-estado="error"]     {--anillo:var(--rojo)}
-  body[data-estado="grabando"] .anillo::before{animation:latido 1.1s ease-in-out infinite}
-  body[data-estado="enviando"] .anillo::before{border-top-color:transparent;animation:giro .9s linear infinite}
-  @keyframes latido{50%{transform:scale(1.06);opacity:.7}}
+  body[data-estado="otro"]      {--anillo:var(--tenue)}
+  body[data-estado="respuesta"] {--anillo:var(--ok)}
+  body[data-estado="calibrar"]  {--anillo:var(--acento)}
+  body[data-estado="error"]     {--anillo:var(--mal)}
+  body[data-estado="inicio"] .anillo svg, body[data-estado="otro"] .anillo svg{color:var(--fondo)}
+  body[data-estado="grabando"] .anillo i:nth-child(1){animation:onda 1.6s ease-out infinite}
+  body[data-estado="grabando"] .anillo i:nth-child(2){animation:onda 1.6s ease-out .35s infinite}
+  body[data-estado="enviando"] .anillo i:nth-child(2){border-top-color:transparent;animation:giro 1s linear infinite}
+  @keyframes onda{0%{transform:scale(.92);opacity:.85}100%{transform:scale(1.12);opacity:0}}
   @keyframes giro{to{transform:rotate(360deg)}}
+
+  /* Resumen: se lee como una hoja de clase */
+  .estudio{padding:22px 0 4px}
+  .estudio h2{margin:0 0 4px;font:700 26px/1.2 var(--serif)}
+  .estudio .sub2{margin:0 0 22px;color:var(--tenue);font-size:15px}
+  .vacio{flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 4px;gap:8px;color:var(--tenue)}
+  .vacio b{color:var(--texto);font:600 22px/1.25 var(--serif)}
+  .idea{margin:0 0 28px;padding:4px 0 4px 18px;border-left:3px solid var(--acento);font:400 20px/1.5 var(--serif)}
+  .bloque{margin:0 0 26px}
+  .bloque h3{margin:0 0 10px;font:600 15px/1.3 var(--sans);color:var(--acento-texto)}
+  ul.puntos{list-style:none;margin:0;padding:0}
+  ul.puntos li{padding:10px 0;border-top:1px solid var(--linea);font:400 17px/1.55 var(--serif)}
+  ul.puntos li:first-child{border-top:0;padding-top:0}
+  ol.pasos{margin:0;padding-left:20px;color:var(--texto)}
+  ol.pasos li{margin:6px 0}
+  dl.conceptos{margin:0}
+  dl.conceptos dt{font-weight:700;margin-top:14px}
+  dl.conceptos dt:first-child{margin-top:0}
+  dl.conceptos dd{margin:2px 0 0;color:var(--tenue);font:400 16px/1.55 var(--serif)}
+  .curioso{margin:0;font:italic 400 17px/1.55 var(--serif)}
+  .qa{padding:12px 0;border-top:1px solid var(--linea)}
+  .qa:first-of-type{border-top:0;padding-top:0}
+  .qa .q{font-weight:700}
+  .qa .q small{display:block;color:var(--tenue);font-weight:600;font-size:13px;margin-bottom:2px}
+  .qa p{margin:4px 0 0;font:400 16px/1.55 var(--serif);color:var(--tenue)}
+  select{font:inherit;font-weight:600;width:100%;padding:12px 14px;border-radius:12px;background:var(--capa);color:var(--texto);
+         border:1.5px solid var(--linea);margin-bottom:18px}
+
+  /* Examen */
+  .progreso{display:flex;gap:5px;margin:2px 0 18px}
+  .progreso i{flex:1;height:4px;border-radius:2px;background:var(--linea)}
+  .progreso i.ok{background:var(--ok)} .progreso i.mal{background:var(--mal)} .progreso i.ahora{background:var(--acento)}
+  .meta{display:flex;justify-content:space-between;align-items:center;color:var(--tenue);font-size:14px;font-weight:600;margin-bottom:10px}
+  .nivel{display:flex;align-items:center;gap:7px}
+  .nivel span{display:flex;gap:3px}
+  .nivel span i{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--acento)}
+  .nivel span i.l{background:var(--acento)}
+  .enunciado{font:600 21px/1.4 var(--serif);margin:0 0 18px}
+  .opciones{display:flex;flex-direction:column;gap:10px}
+  .opcion{display:flex;gap:14px;align-items:flex-start;text-align:left;background:var(--capa);color:var(--texto);
+          border:1.5px solid var(--linea);font-weight:500;padding:14px 16px;line-height:1.4}
+  .opcion .letra{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+                 border:1.5px solid var(--linea);font-size:13px;font-weight:700;color:var(--tenue)}
+  .opcion.ok{border-color:var(--ok)} .opcion.ok .letra{background:var(--ok);border-color:var(--ok);color:var(--fondo)}
+  .opcion.mal{border-color:var(--mal)} .opcion.mal .letra{background:var(--mal);border-color:var(--mal);color:var(--fondo)}
+  .opcion:disabled{cursor:default}
+  .opcion:disabled:not(.ok):not(.mal){opacity:.5}
+  .explica{margin:18px 0 0;font:400 17px/1.55 var(--serif)}
+  .explica b{display:block;font:700 16px/1.3 var(--sans);margin-bottom:4px}
+  .marcador{padding:6px 0 20px}
+  .marcador .cifra{font:700 64px/1 var(--serif)}
+  .marcador .cifra small{font-size:28px;color:var(--tenue);font-weight:400}
+  .marcador p{margin:10px 0 0;font:400 18px/1.45 var(--serif)}
+  .repaso{list-style:none;margin:0;padding:0}
+  .repaso li{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--linea)}
+  .repaso li:first-child{border-top:0;padding-top:0}
+  .repaso .ic{flex:none;font-weight:800;width:16px}
+  .repaso .ic.ok{color:var(--ok)} .repaso .ic.mal{color:var(--mal)}
+  .repaso small{display:block;color:var(--tenue);margin-top:3px;font-size:14px}
+  .botonera{display:flex;flex-direction:column;gap:10px;margin-top:22px}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 </style>
 </head>
@@ -89,10 +178,21 @@
   <header>
     <div class="marca">M.I.R.A.D.A.</div>
     <div class="quien" id="quien">Jurado</div>
+    <button class="tema" id="btnTema" aria-label="Cambiar a tema claro u oscuro">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
   </header>
 
+  <nav class="pestanas oculto" id="pestanas" role="tablist">
+    <button role="tab" data-vista="mic" aria-selected="true">Preguntar</button>
+    <button role="tab" data-vista="resumen" aria-selected="false">Resumen</button>
+    <button role="tab" data-vista="examen" aria-selected="false">Examen</button>
+  </nav>
+
+  <div class="vista" id="vista-mic">
   <section class="escena">
     <div class="anillo" aria-hidden="true">
+      <i></i><i></i><i></i><span class="nucleo"></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/><path d="M8 21h8"/>
       </svg>
@@ -110,21 +210,22 @@
   </section>
 
   <section class="profesor oculto" id="panelProfesor" aria-live="polite">
-    <div class="etq"><span>Profesor MIRADA</span><span class="pildora" id="estadoProf">esperando</span></div>
+    <div class="etq"><span>El profesor</span><span class="pildora" id="estadoProf"></span></div>
     <p class="preg" id="profPregunta"></p>
     <p class="sub" id="profTexto"></p>
   </section>
+  </div>
 
-  <footer>
-    <span><span class="punto" id="punto"></span><span id="conexion">Sin conexión</span></span>
-    <span id="sesion"></span>
-  </footer>
+  <div class="vista oculto" id="vista-resumen"><div class="estudio" id="resumen"></div></div>
+  <div class="vista oculto" id="vista-examen"><div class="estudio" id="examen"></div></div>
+
+  <p class="senal oculto" id="senal">Sin internet en este teléfono. Revise el wifi o los datos.</p>
 </main>
 <div class="aviso" id="aviso"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, collection, onSnapshot, setDoc, addDoc, serverTimestamp, Bytes }
+import { getFirestore, doc, collection, onSnapshot, setDoc, addDoc, serverTimestamp, Bytes, query, where }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -148,8 +249,9 @@ const $ = id => document.getElementById(id);
 const ui = {
   titulo: $("titulo"), detalle: $("detalle"), quien: $("quien"),
   nota: $("nota"), activar: $("btnActivar"), terminar: $("btnTerminar"), pedir: $("btnPedir"), registrar: $("btnRegistrar"),
+  pestanas: $("pestanas"), resumen: $("resumen"), examen: $("examen"),
   panel: $("panelProfesor"), estadoProf: $("estadoProf"), pregunta: $("profPregunta"), texto: $("profTexto"),
-  punto: $("punto"), conexion: $("conexion"), sesion: $("sesion"), aviso: $("aviso"),
+  senal: $("senal"), aviso: $("aviso"),
 };
 let tAviso;
 function avisar(msg) {
@@ -164,7 +266,7 @@ function vibrar(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (_
 const S = {
   conectado: false, sesionActiva: true, micListo: false, error: "",
   grabando: false, enviando: false, calibrandoHasta: 0, sinMedidor: false,
-  turno: null, profesor: null, yo: {}, ultimoTurno: null, pendiente: null,
+  turno: null, profesor: null, yo: {}, ultimoTurno: null, pendiente: null, tAbierto: performance.now(),
 };
 let db, sesionRef, refYo;
 const yo = datos => setDoc(refYo, datos, { merge: true }).catch(() => {});
@@ -190,7 +292,7 @@ function estadoVisual() {
 function render() {
   const e = estadoVisual();
   document.body.dataset.estado = e;
-  ui.quien.textContent = J ? `Jurado ${J}` : "Jurado";
+  ui.quien.innerHTML = J ? `<b>Jurado ${J}</b>` : "";
   let titulo = "", detalle = "";
   if (!SID || !J) {
     titulo = "Escanee su código QR";
@@ -244,6 +346,7 @@ function render() {
         ? `Ronda de preguntas: le ${quedan === 1 ? "queda" : "quedan"} ${quedan} de ${lim}.`
         : `Ya hizo sus ${lim} preguntas. ¡Gracias!`;
       if (pos >= 0) nota += ` Usted es el número ${pos + 1} de la lista.`;
+      if (M.lista.length) nota += " El resumen y el examen ya están disponibles.";
     }
   }
   ui.nota.textContent = nota;
@@ -262,14 +365,18 @@ function render() {
   const mostrarPanel = valido && pr && (pr.texto || pr.pregunta || pr.estado !== "espera");
   ui.panel.classList.toggle("oculto", !mostrarPanel);
   if (pr) {
-    const etiquetas = { espera: "esperando", escuchando: "escuchando", pensando: "pensando", hablando: "hablando" };
-    ui.estadoProf.textContent = etiquetas[pr.estado] || pr.estado || "";
+    const etiquetas = { espera: "", escuchando: "escuchando", pensando: "pensando", hablando: "hablando" };
+    ui.estadoProf.textContent = etiquetas[pr.estado] ?? "";
     ui.pregunta.textContent = pr.pregunta ? `Pregunta: ${pr.pregunta}` : "";
     ui.texto.textContent = pr.estado === "pensando" ? "Pensando…" : (pr.texto || "");
   }
-  ui.punto.classList.toggle("ok", S.conectado);
-  ui.conexion.textContent = S.conectado ? "Conectado" : "Sin conexión";
-  ui.sesion.textContent = SID ? `Sesión ${SID.slice(0, 4)}…` : "";
+  // Pestañas: solo con una sesión válida
+  ui.pestanas.classList.toggle("oculto", !valido);
+  if (!valido && vista !== "mic") mostrarVista("mic");
+  if ((e === "grabando" || S.pendiente) && vista !== "mic") mostrarVista("mic");   // su turno manda
+
+  // Solo se avisa cuando falta internet (después de unos segundos, no al abrir)
+  ui.senal.classList.toggle("oculto", !(valido && !S.conectado && performance.now() - S.tAbierto > 5000));
 }
 
 // ---------- Firebase ----------
@@ -290,8 +397,29 @@ function iniciarFirebase() {
     S.sesionActiva = !!(v && v.activa !== false);
     S.profesor = v ? v.profesor : null;
     manejarTurno(v ? v.turno : null);
-  }, () => { S.error = "No hay permiso para leer la sesión. Revise las reglas de Firestore."; render(); });
+  }, () => { S.error = "No se pudo abrir la sesión. Escanee de nuevo el código."; render(); });
   onSnapshot(refYo, snap => { S.yo = snap.data() || {}; render(); });
+
+  // Resumen y examen: el profesor los abre al terminar la explicación del tema
+  onSnapshot(query(collection(sesionRef, "material"), where("visible", "==", true)), snap => {
+    const antes = new Set(M.lista.map(m => m.id));
+    M.lista = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.creado?.toMillis?.() || 0) - (b.creado?.toMillis?.() || 0));
+    const nuevo = M.lista.find(m => !antes.has(m.id));
+    if (nuevo) {
+      M.actual = nuevo.id;
+      if (cargado) {
+        ui.pestanas.querySelector('[data-vista="resumen"]').classList.add("nuevo");
+        ui.pestanas.querySelector('[data-vista="examen"]').classList.add("nuevo");
+        vibrar([80, 60, 80]);
+        avisar(`Ya puede ver el resumen y el examen de «${nuevo.titulo}»`);
+      }
+    }
+    cargado = true;
+    pintarResumen();
+    if (!E || E.mid !== M.actual || E.fase === "inicio") nuevoExamen(false);
+    render();
+  }, () => {});
 }
 
 function manejarTurno(t) {
@@ -394,7 +522,7 @@ async function finalizar(mime) {
       avisar("No se grabó audio. Puede volver a levantar la mano.");
       return;
     }
-    // Se envía siempre lo grabado: si de verdad no hubo voz, Gemini pide repetir la pregunta.
+    // Se envía siempre lo grabado: si de verdad no hubo voz, el profesor pide repetir la pregunta.
     S.enviando = true; render();
     const blob = new Blob(trozos, { type: mime });
     const audio = Bytes.fromUint8Array(new Uint8Array(await blob.arrayBuffer()));
@@ -464,11 +592,217 @@ ui.registrar.addEventListener("click", () => {
   render();
 });
 
+// ---------- Pestañas ----------
+let vista = "mic";
+function mostrarVista(v) {
+  vista = v;
+  ui.aviso.classList.remove("ver");
+  for (const b of ui.pestanas.querySelectorAll("button")) {
+    const sel = b.dataset.vista === v;
+    b.setAttribute("aria-selected", sel);
+    if (sel) b.classList.remove("nuevo");
+  }
+  for (const id of ["mic", "resumen", "examen"]) $("vista-" + id).classList.toggle("oculto", id !== v);
+  scrollTo(0, 0);
+}
+ui.pestanas.addEventListener("click", ev => {
+  const b = ev.target.closest("button[data-vista]");
+  if (b) mostrarVista(b.dataset.vista);
+});
+
+// ---------- Resumen ----------
+const M = { lista: [], actual: null };
+let cargado = false;
+const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const material = () => M.lista.find(m => m.id === M.actual) || M.lista[M.lista.length - 1] || null;
+
+function selectorTema() {
+  if (M.lista.length < 2) return "";
+  return `<select data-tema aria-label="Tema">${M.lista.map(m =>
+    `<option value="${esc(m.id)}" ${m.id === (material() || {}).id ? "selected" : ""}>${esc(m.titulo)}</option>`).join("")}</select>`;
+}
+document.addEventListener("change", ev => {
+  if (ev.target.matches("select[data-tema]")) { M.actual = ev.target.value; pintarResumen(); nuevoExamen(false); }
+});
+
+function sinMaterial() {
+  return `<div class="vacio"><b>Todavía no hay una clase</b>
+    <span>Cuando el profesor termine de explicar un tema, aquí podrá repasarlo y hacer un examen corto.</span></div>`;
+}
+
+function pintarResumen() {
+  const m = material();
+  if (!m) { ui.resumen.innerHTML = sinMaterial(); return; }
+  const r = m.resumen || {};
+  let h = selectorTema() + `<h2>${esc(m.titulo)}</h2><p class="sub2">Resumen de la clase</p>`;
+  if (r.idea_central) h += `<p class="idea">${esc(r.idea_central)}</p>`;
+  if ((r.puntos || []).length)
+    h += `<section class="bloque"><h3>Lo más importante</h3><ul class="puntos">${r.puntos.map(p => `<li>${esc(p)}</li>`).join("")}</ul></section>`;
+  if ((r.conceptos || []).length)
+    h += `<section class="bloque"><h3>Conceptos</h3><dl class="conceptos">${r.conceptos.map(c =>
+      `<dt>${esc(c.termino)}</dt><dd>${esc(c.definicion)}</dd>`).join("")}</dl></section>`;
+  if (r.dato_curioso) h += `<section class="bloque"><h3>Dato curioso</h3><p class="curioso">${esc(r.dato_curioso)}</p></section>`;
+  if ((m.qa || []).length)
+    h += `<section class="bloque"><h3>Lo que preguntó el jurado</h3>${m.qa.map(q => `<div class="qa">
+      <div class="q"><small>${q.jurado ? "Jurado " + esc(q.jurado) : "Público"}</small>${esc(q.pregunta)}</div>
+      <p>${esc(q.respuesta)}</p></div>`).join("")}</section>`;
+  h += `<div class="botonera"><button class="primario" data-ir="examen">Hacer el examen</button></div>`;
+  ui.resumen.innerHTML = h;
+}
+
+// ---------- Examen ----------
+const POR_EXAMEN = 5;
+let E = null;
+const barajar = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [a[i], a[k]] = [a[k], a[i]]; } return a; };
+function claveVistas(mid) { return `mirada_vistas_${SID}_${mid}`; }
+function leerVistas(mid) { try { return JSON.parse(localStorage.getItem(claveVistas(mid)) || "[]"); } catch (_) { return []; } }
+function guardarVistas(mid, v) { try { localStorage.setItem(claveVistas(mid), JSON.stringify(v)); } catch (_) {} }
+
+// Elige preguntas al azar: primero las que no ha visto, con dificultad mezclada (de fácil a difícil)
+function elegir(banco, mid) {
+  const n = Math.min(POR_EXAMEN, banco.length);
+  let vistas = new Set(leerVistas(mid));
+  let libres = banco.map((_, i) => i).filter(i => !vistas.has(i));
+  if (libres.length < n) { vistas = new Set(); libres = banco.map((_, i) => i); }   // ya vio todo: empieza de nuevo
+  const porNivel = nv => barajar(libres.filter(i => banco[i].nivel === nv));
+  const cuota = { "básico": 2, "intermedio": 2, "avanzado": 1 };
+  let elegidas = [];
+  for (const nv of Object.keys(cuota)) elegidas.push(...porNivel(nv).slice(0, cuota[nv]));
+  elegidas = elegidas.slice(0, n);
+  for (const i of barajar(libres)) { if (elegidas.length >= n) break; if (!elegidas.includes(i)) elegidas.push(i); }
+  const orden = { "básico": 0, "intermedio": 1, "avanzado": 2 };
+  elegidas.sort((a, b) => (orden[banco[a].nivel] ?? 1) - (orden[banco[b].nivel] ?? 1));
+  guardarVistas(mid, [...vistas, ...elegidas]);
+  return elegidas;
+}
+
+function nuevoExamen(empezar) {
+  const m = material();
+  if (!m) { E = null; pintarExamen(); return; }
+  E = { mid: m.id, fase: empezar ? "pregunta" : "inicio", i: 0, items: [], respuestas: [], elegida: null, guardado: false };
+  if (empezar) {
+    E.items = elegir(m.preguntas || [], m.id).map(idx => {
+      const p = m.preguntas[idx];
+      return { idx, p, orden: barajar([0, 1, 2, 3]) };      // las opciones también se revuelven
+    });
+  }
+  pintarExamen();
+}
+
+function nivelHtml(nv) {
+  const n = { "básico": 1, "intermedio": 2, "avanzado": 3 }[nv] || 2;
+  const nombre = { 1: "Básica", 2: "Intermedia", 3: "Avanzada" }[n];
+  return `<span class="nivel" title="Dificultad">${nombre}<span aria-hidden="true">${[1, 2, 3].map(k => `<i class="${k <= n ? "l" : ""}"></i>`).join("")}</span></span>`;
+}
+
+function pintarExamen() {
+  const m = material();
+  if (!m || !E) { ui.examen.innerHTML = sinMaterial(); return; }
+  const banco = (m.preguntas || []).length;
+  let h = selectorTema();
+  if (E.fase === "inicio") {
+    const n = Math.min(POR_EXAMEN, banco);
+    h += `<h2>Examen: ${esc(m.titulo)}</h2><p class="sub2">${n} preguntas al azar de un banco de ${banco}</p>
+      <section class="bloque"><ol class="pasos">
+        <li>Las preguntas van de básicas a avanzadas.</li>
+        <li>Al responder verá si acertó y por qué.</li>
+        <li>Puede repetirlo: cada intento trae preguntas distintas.</li></ol></section>
+      <div class="botonera"><button class="primario" data-examen="empezar">Comenzar examen</button>
+      <button class="secundario" data-ir="resumen">Repasar el resumen primero</button></div>`;
+  } else if (E.fase === "pregunta") {
+    const it = E.items[E.i], p = it.p, contestada = E.elegida !== null;
+    h += `<div class="progreso">${E.items.map((_, k) => `<i class="${k < E.i ? (E.respuestas[k].ok ? "ok" : "mal") : k === E.i ? "ahora" : ""}"></i>`).join("")}</div>
+      <div class="meta"><span>Pregunta ${E.i + 1} de ${E.items.length}</span>${nivelHtml(p.nivel)}</div>
+      <p class="enunciado">${esc(p.pregunta)}</p><div class="opciones">`;
+    it.orden.forEach((o, k) => {
+      let cls = "";
+      if (contestada && o === p.correcta) cls = "ok";
+      else if (contestada && o === E.elegida) cls = "mal";
+      h += `<button class="opcion ${cls}" data-opcion="${o}" ${contestada ? "disabled" : ""}>
+        <span class="letra">${"ABCD"[k]}</span><span>${esc(p.opciones[o])}</span></button>`;
+    });
+    h += `</div>`;
+    if (contestada) {
+      const ok = E.elegida === p.correcta;
+      h += `<div class="explica"><b style="color:var(${ok ? "--ok" : "--mal"})">${ok ? "¡Correcto!" : "No es correcta"}</b>${esc(p.explicacion || "")}</div>
+        <div class="botonera"><button class="primario" data-examen="siguiente">${E.i + 1 < E.items.length ? "Siguiente pregunta" : "Ver mi calificación"}</button></div>`;
+    }
+  } else {
+    const aciertos = E.respuestas.filter(r => r.ok).length, total = E.items.length;
+    const frac = aciertos / Math.max(1, total);
+    const frase = frac === 1 ? "¡Perfecto! Dominó el tema." : frac >= 0.8 ? "¡Muy bien! Entendió las ideas principales."
+      : frac >= 0.6 ? "Bien. Repase el resumen para afinar los detalles." : "Vale la pena repasar el resumen e intentarlo de nuevo.";
+    h += `<div class="marcador"><div class="cifra">${aciertos}<small> / ${total}</small></div><p>${frase}</p></div>
+      <section class="bloque"><h3>Sus respuestas</h3><ul class="repaso">${E.items.map((it, k) => {
+        const ok = E.respuestas[k].ok;
+        return `<li><span class="ic ${ok ? "ok" : "mal"}">${ok ? "✓" : "✗"}</span><span>${esc(it.p.pregunta)}
+          ${ok ? "" : `<small>Respuesta: ${esc(it.p.opciones[it.p.correcta])}</small>`}</span></li>`;
+      }).join("")}</ul></section>
+      <div class="botonera"><button class="primario" data-examen="empezar">Otro examen con otras preguntas</button>
+      <button class="secundario" data-ir="resumen">Ver el resumen</button></div>`;
+    if (!E.guardado) { E.guardado = true; guardarResultado(aciertos, total); }
+  }
+  ui.examen.innerHTML = h;
+}
+
+function guardarResultado(aciertos, total) {
+  if (!sesionRef) return;
+  addDoc(collection(sesionRef, "examenes"), {
+    jurado: J, material: E.mid, aciertos, total,
+    respuestas: E.items.map((it, k) => ({ pregunta: it.idx, ok: E.respuestas[k].ok })),
+    creado: serverTimestamp(),
+  }).catch(() => {});
+}
+
+document.addEventListener("click", ev => {
+  const ir = ev.target.closest("[data-ir]");
+  if (ir) { mostrarVista(ir.dataset.ir); return; }
+  const acc = ev.target.closest("[data-examen]");
+  if (acc && acc.dataset.examen === "empezar") { nuevoExamen(true); scrollTo(0, 0); return; }
+  if (acc && acc.dataset.examen === "siguiente") {
+    E.i++; E.elegida = null;
+    if (E.i >= E.items.length) E.fase = "resultado";
+    pintarExamen(); scrollTo(0, 0); return;
+  }
+  const op = ev.target.closest("[data-opcion]");
+  if (op && E && E.fase === "pregunta" && E.elegida === null) {
+    E.elegida = parseInt(op.dataset.opcion, 10);
+    const ok = E.elegida === E.items[E.i].p.correcta;
+    E.respuestas[E.i] = { ok };
+    vibrar(ok ? 30 : [40, 60, 40]);
+    pintarExamen();
+  }
+});
+
+// ---------- Tema claro / oscuro ----------
+function temaActual() {
+  const t = document.documentElement.dataset.tema;
+  if (t) return t;
+  return matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "oscuro";
+}
+function ponerTema(t) {
+  document.documentElement.dataset.tema = t;
+  document.querySelector('meta[name="theme-color"]').content = t === "claro" ? "#F3F6F2" : "#12211C";
+  $("btnTema").innerHTML = t === "claro"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  $("btnTema").setAttribute("aria-label", t === "claro" ? "Cambiar a tema oscuro" : "Cambiar a tema claro");
+}
+try { const t = localStorage.getItem("mirada_tema"); if (t) document.documentElement.dataset.tema = t; } catch (_) {}
+ponerTema(temaActual());
+$("btnTema").addEventListener("click", () => {
+  const t = temaActual() === "claro" ? "oscuro" : "claro";
+  ponerTema(t);
+  try { localStorage.setItem("mirada_tema", t); } catch (_) {}
+});
+
 // ---------- Inicio ----------
+setInterval(render, 2000);
+pintarResumen(); pintarExamen();
 render();
 if (SID && J) {
   try { iniciarFirebase(); }
-  catch (e) { S.error = "No se pudo conectar con Firebase."; render(); }
+  catch (e) { S.error = "No se pudo conectar con el servidor."; render(); }
 }
 </script>
 </body>
